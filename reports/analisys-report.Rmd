@@ -29,7 +29,7 @@ theme_set(theme_bw())
 ## Lendo os eventos
 
 ```{r ETL}
-buscas = read_csv("../data/search_data.csv"))
+buscas = read_csv("../data/search_data.csv")
 ```
 
 
@@ -56,36 +56,40 @@ zero_results = buscas %>%
 ```
 
 ```{r}
-# search_dates %>%
-# ggplot(aes(y = num_clicks, x=search_date, alpha=0.3)) +
-# geom_jitter()
+search_dates %>%
+    ggplot(aes(x = num_clicks, alpha=0.3, coloe)) +
+    geom_jitter(data = search_dates,
+                aes(y=search_date),
+                width = .1
+                color = "grey") +
+    geom_point()
 
-group_a_plots = search_dates %>%
-    filter( group == "a") %>% 
-    ggplot(aes(x = num_clicks, y=search_date)) +
-    geom_jitter(
-        # width = .5,
-        alpha = .7,
-        # size = 1,
-        height = 0.1,
-        color = "grey"
-    )+
-    coord_flip() 
-
-
-group_b_plots = search_dates %>%
-    filter( group == "b") %>% 
-    ggplot(aes(x = num_clicks, y=search_date)) +
-    geom_jitter(
-        # width = .5,
-        alpha = .7,
-        # size = 1,
-        height = 0.1,
-        color = "orange"
-    )+
-    coord_flip() 
-
-grid.arrange(group_a_plots, group_b_plots, ncol = 2, bottom="Temperatura Média")
+# group_a_plots = search_dates %>%
+#     filter( group == "a") %>% 
+#     ggplot(aes(x = num_clicks, y=search_date)) +
+#     geom_jitter(
+#         # width = .5,
+#         alpha = .7,
+#         # size = 1,
+#         height = 0.1,
+#         color = "grey"
+#     )+
+#     coord_flip() 
+# 
+# 
+# group_b_plots = search_dates %>%
+#     filter( group == "b") %>% 
+#     ggplot(aes(x = num_clicks, y=search_date)) +
+#     geom_jitter(
+#         # width = .5,
+#         alpha = .7,
+#         # size = 1,
+#         height = 0.1,
+#         color = "orange"
+#     )+
+#     coord_flip() 
+# 
+# grid.arrange(group_a_plots, group_b_plots, ncol = 2, bottom="Temperatura Média")
 ```
 
 ```{r}
