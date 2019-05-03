@@ -10,6 +10,8 @@ Como usamos dados derivados dos logs de eventos da wikimedia, aqui primeiro expl
 ```{r}
 library(tidyverse)
 library(lubridate)
+library(gridExtra)
+library(grid)
 theme_set(theme_bw())
 ```
 
@@ -27,7 +29,7 @@ theme_set(theme_bw())
 ## Lendo os eventos
 
 ```{r ETL}
-buscas = read_csv(here::here("data/search_data.csv"))
+buscas = read_csv("../data/search_data.csv"))
 ```
 
 
@@ -37,9 +39,53 @@ glimpse(buscas)
 
 
 ```{r}
-buscas %>% 
-    ggplot(aes(x = num_clicks, y="")) +
-    geom_jitter()
+search_dates <- buscas %>% 
+  mutate(search_date = format(session_start_date, "%d-%m-%Y"))
+
+glimpse(search_dates)
+```
+
+```{r}
+zero_results = buscas %>% 
+    filter(results == 0)
+```
+
+```{r}
+# session_duration = buscas %>% 
+#     filter(results == 0)
+```
+
+```{r}
+# search_dates %>%
+# ggplot(aes(y = num_clicks, x=search_date, alpha=0.3)) +
+# geom_jitter()
+
+group_a_plots = search_dates %>%
+    filter( group == "a") %>% 
+    ggplot(aes(x = num_clicks, y=search_date)) +
+    geom_jitter(
+        # width = .5,
+        alpha = .7,
+        # size = 1,
+        height = 0.1,
+        color = "grey"
+    )+
+    coord_flip() 
+
+
+group_b_plots = search_dates %>%
+    filter( group == "b") %>% 
+    ggplot(aes(x = num_clicks, y=search_date)) +
+    geom_jitter(
+        # width = .5,
+        alpha = .7,
+        # size = 1,
+        height = 0.1,
+        color = "orange"
+    )+
+    coord_flip() 
+
+grid.arrange(group_a_plots, group_b_plots, ncol = 2, bottom="Temperatura Média")
 ```
 
 ```{r}
