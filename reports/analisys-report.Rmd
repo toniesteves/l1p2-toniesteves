@@ -18,6 +18,8 @@ theme_set(theme_bw())
 
 1. Qual é a nossa taxa de cliques geral diária? Como isso varia entre os grupos?
 
+taxa de cliques = num_clicks/sessao
+
 2. Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 
 3. Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
@@ -56,40 +58,70 @@ zero_results = buscas %>%
 ```
 
 ```{r}
-search_dates %>%
-    ggplot(aes(x = num_clicks, alpha=0.3, coloe)) +
-    geom_jitter(data = search_dates,
-                aes(y=search_date),
-                width = .1
-                color = "grey") +
-    geom_point()
+clickthrough_rate = search_dates %>%
+  filter((num_clicks > 0) & (first_click > results)) %>% 
+  group_by(search_date) %>%
+  summarise(media = mean(num_clicks))
+# 
+# day = search_dates %>% 
+#   filter(search_date == "01-03-2016")
+# 
+# sessions = search_dates %>%
+#   filter(num_clicks > 2)
+# 
+# sessions
 
-# group_a_plots = search_dates %>%
-#     filter( group == "a") %>% 
-#     ggplot(aes(x = num_clicks, y=search_date)) +
-#     geom_jitter(
-#         # width = .5,
-#         alpha = .7,
-#         # size = 1,
-#         height = 0.1,
-#         color = "grey"
-#     )+
-#     coord_flip() 
-# 
-# 
-# group_b_plots = search_dates %>%
-#     filter( group == "b") %>% 
-#     ggplot(aes(x = num_clicks, y=search_date)) +
-#     geom_jitter(
-#         # width = .5,
-#         alpha = .7,
-#         # size = 1,
-#         height = 0.1,
-#         color = "orange"
-#     )+
-#     coord_flip() 
-# 
-# grid.arrange(group_a_plots, group_b_plots, ncol = 2, bottom="Temperatura Média")
+  
+# clickthrough_rate = search_dates %>%
+#   filter(num_clicks > 0) %>% 
+#   group_by(search_date)%>%
+#   summarise(CTR = (sum(num_clicks)/length(session_id)))
+  # summarise(CTR = length(session_id))
+
+# clickthrough_rate = search_dates %>%
+#   filter(search_date == "01-03-2016")
+  # summarise(CTR = (sum(num_clicks)/count(session_id)))
+  # summarise(CTR = length(session_id))
+
+
+# clickthrough_rate = search_dates %>%
+#     group_by(round_date(search_date , unit="day"), group) %>%  
+#     summarise(somatorio = sum(num_clicks)) %>% 
+#     head()
+#   
+```
+
+```{r}
+search_dates %>%
+    filter(group=="a") %>% 
+    ggplot(aes(x = search_date, y=media)) +
+    # geom_jitter(aes(y = num_clicks), width = .1, alpha = .5 ) +
+    geom_line(color="#69b3a2") +
+    geom_point(
+      data = clickthrough_rate,
+      aes(y = media),
+      color = "red",
+      shape = 15,
+      size = 3
+    )
+
+# search_dates %>%
+#     filter(group=="b") %>% 
+#     ggplot(aes(x = search_date)) +
+#     geom_jitter(aes(y = num_clicks), width = .1, alpha = .7, color="#69b3a2" ) +
+#     geom_point(
+#       data = clickthrough_rate,
+#       aes(y = media),
+#       color = "red",
+#       shape = 15,
+#       size = 3
+#     ) +
+#     labs(
+#         y = "Número de Cliques ao dia",
+#         x = "Datas em que foram efetuadas buscas",
+#         title = "Taxa de cliques geral diária",
+#         subtitle = "Quadrados representam a Taxa de cliques ao dia."
+#     )
 ```
 
 ```{r}
