@@ -1,19 +1,15 @@
 ---
-title: "Antônio Esteves"
+title: "Fundamentos de Pesquisa em Ciência da Computação 2"
 output:
   html_document:
     df_print: paged
 ---
 
-## O quê
+## L2P2 - Antonio Esteves
 
-Como usamos dados derivados dos logs de eventos da wikimedia, aqui primeiro exploramos esses logs para entender como os eventos foram coletados, e para procurar características inesperadas. 
+## **Explorando e Inferindo dados das Sessões, Buscas e Navegações da Wikimedia**
 
-```{r}
-library(tidyverse)
-library(lubridate)
-```
-
+Neste relatório, usa-se a exploração de dados da Wikimedia Foundation, apresentando conclusões de inferências estatísticas sobre o dataset disponibilizado por eles e seguindo instruções da tarefa original, respondendo as quatro perguntas elencadas na mesma.
 
 1. Qual é a nossa taxa de cliques geral diária? Como isso varia entre os grupos?
 
@@ -25,17 +21,33 @@ library(lubridate)
 
 5. Resuma suas descobertas em um resumo executivo.
 
-## Lendo os eventos
+Nas seções um e dois estão as bibliotecas utilizadas e o os dados utilizados na análise. Na seção 3 estão as respostas para as perguntas elencadas no relatório e na última seção estão as conclusões obtidas das análises sobre os dados.
+
+
+## **1.** Importando as bibliotecas utilizadas.
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+
+
+## **2.** Lendo dataset de buscas para análise.
 
 ```{r ETL}
 buscas = read_csv("../data/search_data.csv")
 ```
 
+### 2.1 Tratamento dos dados
 
 ```{r}
 glimpse(buscas)
 ```
 
+Para uma análise melhor, foram realizados alguns tratamento nos dados, retirando registros com comportamentos indesejados.
+
+O primeiro registro retirado foi onde o local do primeiro click é maior que a quantidade de resultados da busca (‘first_click’ > ‘results’).
 
 ```{r}
 search_dates <- buscas %>% 
@@ -44,115 +56,78 @@ search_dates <- buscas %>%
 glimpse(search_dates)
 ```
 
+### 2.2 Variáveis Utilizadas nas análises
+As variáveis utilizadas podem serem vistas abaixo:
+
+`group` : Um marcador (“a” ou “b”);
+
+`results` : Número de ocorrências retornadas para o usuário;
+
+`num_clicks`: Número de ocorrências clicadas pelo usuário;
+
+`first_click`: Posição da ocorrência que o usuário clicou primeiro;
+
+`session_start_date`: Data do início da pesquisa;
+
+`session_length`: Duração da sessão.
+
+
+## **3.** Respostas e Análise exploratória de dados.
+
+
+
+### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
+
 ```{r}
-search_dates %>%
-  filter((num_clicks > 0) & (first_click > results)) %>% 
-  group_by(search_date) %>%
-  summarize(media = mean(num_clicks)) %>%
-  ggplot(aes(x=search_date,y=media)) + 
-  geom_point(color = "brown") + 
-  geom_line(aes(group=1),linetype='dotted') +
-  labs(
-      title = "Figura 1 - Taxa de Cliques Geral Diária", 
-      x = "Datas em que foram efetuadas buscas",
-      y = "Número de Acessos ao dia",
-      # subtitle = "Resultados primeiramente acessados para datas que ocorreram buscas.",
-      fill = "Data da busca")
+clicked = search_dates %>%
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0)) %>%
+  group_by(search_date)
 
+per_date = clicked %>% 
+  summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(search_dates)))
 
-clickthrough_rate = search_dates %>%
-  filter((num_clicks > 0) & (first_click > results)) %>% 
-  group_by(search_date) %>%
-  summarise(media = mean(num_clicks))
-
-
-search_dates %>%
-  ggplot(aes(x = search_date, y = num_clicks)) +
-  geom_jitter(aes(y = num_clicks), width = .1, alpha = .2, color="grey", size=3, na.rm = TRUE ) +
+per_date %>%
+  ggplot(aes(x=search_date,y=clickthrough_rate)) + 
   geom_point(
-    data = clickthrough_rate,
-    aes(y = media),
-    color = "red",
-    shape = 15,
-    size = 2
-  )+
-  ylim(0, 5)+
-  labs(
-      y = "Número de Cliques ao Dia",
-      x = "Datas em que foram efetuadas buscas",
-      title = "Taxa de cliques Geral",
-      subtitle = "Quadrados representam a Taxa de cliques ao dia."
-    )
-```
-
-```{r}
-clickthrough_rate = search_dates %>%
-  filter(group =="a") %>% 
-  filter((num_clicks > 0) & (first_click > results)) %>% 
-  group_by(search_date) %>%
-  summarise(media = mean(num_clicks))
-
-search_dates %>%
-    filter(group=="a") %>% 
-    ggplot(aes(x = search_date, y = num_clicks)) +
-    geom_jitter(aes(y = num_clicks), width = .1, alpha = .2, color="grey", size=3, na.rm = TRUE ) +
-    geom_point(
-      data = clickthrough_rate,
-      aes(y = media),
-      color = "red",
-      shape = 15,
-      size = 2
-    )+
-    ylim(0, 5)+
-    labs(
-        y = "Número de Cliques ao dia",
-        x = "Datas em que foram efetuadas buscas",
-        title = "Taxa de cliques para o algoritmo A",
-        subtitle = "Quadrados representam a Taxa de cliques ao dia."
-    )
-
-clickthrough_rate = search_dates %>%
-  filter(group =="b") %>% 
-  filter((num_clicks > 0) & (first_click > results)) %>% 
-  group_by(search_date) %>%
-  summarise(media = mean(num_clicks))
-
-search_dates %>%
-    filter(group=="b") %>%
-    ggplot(aes(x = search_date)) +
-    geom_jitter(aes(y = num_clicks), width = .1, alpha = .2, color="grey", na.rm = TRUE) +
-    geom_point(
-      data = clickthrough_rate,
-      aes(y = media),
-      color = "blue",
-      shape = 15,
-      size = 2
-    ) +
-    labs(
-        y = "Número de Cliques ao dia",
-        x = "Datas em que foram efetuadas buscas",
-        title = "Taxa de cliques para o algoritmo B",
-        subtitle = "Quadrados representam a Taxa de cliques ao dia."
-    )
-```
-```{r}
-search_dates %>%
-  filter((num_clicks > 0) & (first_click > results)) %>% 
-  group_by(search_date) %>%
-  summarize(media = mean(num_clicks)) %>%
-  ggplot(aes(x=search_date,y=media)) + 
-  geom_point(
-    color = "#6ab3a2",
+    color="#44cde8",
     size=3
   ) + 
   geom_line(aes(group=1),linetype='dotted') +
   labs(
-      title = "Figura 1 - Link do Primeiro Acesso Entre os Resultados", 
-      x = "Resultado Acessado.", 
-      y = "Quantidade de Acesso",
-      subtitle = "Resultados primeiramente acessados para datas que ocorreram buscas.",
+      title = "Figura 1 - Taxa de Cliques Geral Diária", 
+      x = "Data de Acesso.", 
+      y = "Taxa Geral de Cliques",
+      subtitle = "Taxa de cliques para datas em que ocorreram buscas.",
       fill = "Data da busca")
 ```
+
+```{r}
+clicked = search_dates %>%
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0)) %>%
+  group_by(search_date, group)
+
+per_date = clicked %>% 
+  summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(search_dates)))
+
+per_date %>%
+  group_by(group) %>% 
+  ggplot(aes(x=search_date,y=clickthrough_rate)) + 
+  geom_point(
+    aes(color=group),
+    size=3
+  ) + 
+  scale_color_manual(values=c("#6ab3a2", "brown")) +
+  geom_line(aes(group=group),linetype='dotted') +
+  labs(
+      title = "Figura 2 - Variação da Taxa de Cliques Geral Diária Entre Grupos", 
+      x = "Data de Acesso.", 
+      y = "Taxa Geral de Cliques",
+      subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas.",
+      fill = "Data da busca",
+      color = "Grupo")
+```
+
+### 3.2 Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 
 
 ```{r}
@@ -162,11 +137,14 @@ search_dates %>%
   geom_bar(color = "black") + 
   scale_x_log10() +
   labs(
-      x = "Resultado Acessado", 
+      title = "Figura 3 - Preferência do Primeiro Acesso Entre os Resultados",
+      x = "Resultados Acessados", 
       y = "Quantidade de Acessos", 
-      title = "Figura 2 - Preferência do Primeiro Acesso Entre os Resultados")
+      subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas."
+      )
 ```
 
+# Rever histogramas, melhorar visualização
 
 ```{r}
 search_dates %>%
@@ -201,6 +179,8 @@ search_dates %>%
 
 
 ```
+
+# Rever formula (num_zero_results/num sessions)
 ```{r}
 search_dates %>% 
   filter(!is.na(results) & results == 0) %>% 
