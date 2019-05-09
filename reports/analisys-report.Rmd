@@ -29,6 +29,12 @@ Nas seções um e dois estão as bibliotecas utilizadas e o os dados utilizados 
 ```{r}
 library(tidyverse)
 library(lubridate)
+
+
+library(here)
+
+library(ggbeeswarm)
+library(gridExtra)
 ```
 
 
@@ -45,9 +51,8 @@ buscas = read_csv("../data/search_data.csv")
 glimpse(buscas)
 ```
 
-Para uma análise melhor, foram realizados alguns tratamento nos dados, retirando registros com comportamentos indesejados.
+Para uma análise melhor, foram realizados alguns tratamento nos dados. Inicialmente separamos os dados de forma a compilar apenas as datas que foram efetuadas buscas. Tratamentos específicos são realizados para cada sessão.
 
-O primeiro registro retirado foi onde o local do primeiro click é maior que a quantidade de resultados da busca (‘first_click’ > ‘results’).
 
 ```{r}
 search_dates <- buscas %>% 
@@ -71,6 +76,8 @@ As variáveis utilizadas podem serem vistas abaixo:
 
 `session_length`: Duração da sessão.
 
+`search_index` : Um contador de buscas em uma mesma sessão ordenado cronologicamente
+
 
 ## **3.** Respostas e Análise exploratória de dados.
 
@@ -78,9 +85,14 @@ As variáveis utilizadas podem serem vistas abaixo:
 
 ### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos?
 
+Para responder a essa pergunta, foi efetuado um tratamento nos dados de forma a remover incialmente resultados nulos e resultados onde o primeiro clique, por motivos desconhecidos são maiores que a quantidade de resultados retornardos na busca. Outro ponto a que merece destaque, é que o dia 08/03 apenas possui registros até as 20h. Desta forma optou-se por remover esses dias do cálculo da taxa geral de cliques de forma a obter um resultado mais coeso.
+
+
+A taxa de cliques geral é bem baixa, mais ainda no dia 05 de Março.
+
 ```{r}
 clicked = search_dates %>%
-  filter((num_clicks > 0) & (first_click <= results) & (results > 0)) %>%
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016")) %>%
   group_by(search_date)
 
 per_date = clicked %>% 
@@ -97,13 +109,15 @@ per_date %>%
       title = "Figura 1 - Taxa de Cliques Geral Diária", 
       x = "Data de Acesso.", 
       y = "Taxa Geral de Cliques",
-      subtitle = "Taxa de cliques para datas em que ocorreram buscas.",
-      fill = "Data da busca")
+      subtitle = "Taxa de cliques para datas em que ocorreram buscas."
+      )
 ```
+
+O detalhamento da  taxa de cliques geral comparado por grupos também é bem baixa. No entanto o grupo que utilizou o algoritmo de busca B, ainda que com uma taxa menor, apresenta uma taxa mais constante que o grupo que utilizou o algoritmo de busca A. Diferentemente do algoritmo de busca A o algoritmo B não apresenta uma redução de taxa significativa para o dia 05 de Março. Talvez um problema bastante especifico do algoritmo ou do grupo em questão.
 
 ```{r}
 clicked = search_dates %>%
-  filter((num_clicks > 0) & (first_click <= results) & (results > 0)) %>%
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016")) %>%
   group_by(search_date, group)
 
 per_date = clicked %>% 
@@ -123,16 +137,17 @@ per_date %>%
       x = "Data de Acesso.", 
       y = "Taxa Geral de Cliques",
       subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas.",
-      fill = "Data da busca",
       color = "Grupo")
 ```
 
 ### 3.2 Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
 
+Para identificar a preferência dos usuários dentre os resultados retornardos na busca, inicialmente foram removidos registros de cliques nulos e invalidos bem como o dia 08 de Março.
+
 
 ```{r}
 search_dates %>% 
-  filter(!is.na(first_click) & first_click != 0) %>%
+  filter((!is.na(first_click)) & (first_click != 0) & (search_date != "08-03-2016")) %>%
   ggplot(aes(x=first_click)) + 
   geom_bar(color = "black") + 
   scale_x_log10() +
@@ -140,11 +155,13 @@ search_dates %>%
       title = "Figura 3 - Preferência do Primeiro Acesso Entre os Resultados",
       x = "Resultados Acessados", 
       y = "Quantidade de Acessos", 
-      subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas."
+      subtitle = "Distribuição para datas para datas em que ocorreram buscas."
       )
 ```
 
-# Rever histogramas, melhorar visualização
+A distribuição mostra-se assimétrica uma grande cauda a direita, além disso aparentemente o comportamento mais comum dos usuários é acessar o primeiro link.
+
+Abaixo uma distribuição mais granularizada é possível observar o a quantidade de acessos para o primeiro clique nas datas em que ocorreram buscas. 
 
 ```{r}
 search_dates %>%
@@ -153,7 +170,7 @@ search_dates %>%
     geom_histogram(binwidth = 2, na.rm = TRUE) +
     scale_x_continuous(limits=c(0, 30)) +
     scale_y_continuous(limits=c(0, 1000)) +
-    facet_wrap(~ search_date, nrow=2) + 
+    facet_wrap(~ search_date, nrow=2) +
     labs(
       title = "Figura 4 - Link do Primeiro Acesso Entre os Resultados", 
       x = "Resultado Acessado.", 
@@ -163,12 +180,17 @@ search_dates %>%
 
 ```
 
+
+O dia 07 de Março a incidencia de primeiros cliques aparentemene mostrou-se maior. É constante o fato do usuário clicar no primeiro link na maioria dos dias ou emalgum link que pertence aos 10 primeiros resultados.
+
 # 3. Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+Para responder esse questionamento, foram considerados apenas valores iguais a 0. Com isso, na Figura 5 exibe a distribuição de zeros nos resultados por data de ocorrência. Baseado nas questões já respondidas é possível notar também que a taxa da ocorrência de buscas sem resultado consegue ser maior que a taxa geral de cliques.
 
 ```{r}
 
 no_results = search_dates %>%
-  filter(results > 0) %>%
+  filter((results > 0)) %>%
   group_by(search_date)
 
 no_results_per_date = no_results %>%
@@ -182,20 +204,21 @@ no_results_per_date %>%
   ) +
   geom_line(aes(group=1),linetype='dotted') +
   labs(
-      title = "Figura 5 - Taxa de Cliques Geral Diária",
+      title = "Figura 5 - Taxa Geral Diária de Buscas sem Resultados ",
       x = "Data de Acesso.",
       y = "Taxa Geral de Cliques",
-      subtitle = "Taxa de cliques para datas em que ocorreram buscas.",
-      fill = "Data da busca")
+      subtitle = "Taxa de cliques para datas em que ocorreram buscas."
+      )
 
 
 
 ```
 
+A variação da taxa de buscas sem resultado para cada grupo é demonstrada abaixo. Novamente é possível observar a amplitude dos dados no dia 05 de Março para o grupo que utilizou o algoritmo de busca A.
 
 ```{r}
 no_results = search_dates %>%
-  filter(results > 0) %>%
+  filter((results > 0)) %>%
   group_by(search_date, group)
 
 no_results_per_date = no_results %>%
@@ -211,24 +234,42 @@ no_results_per_date %>%
   scale_color_manual(values=c("orange", "navy blue")) +
   geom_line(aes(group=group),linetype='dotted') +
   labs(
-      title = "Figura 6 - Variação da Taxa de Cliques Geral Diária Entre Grupos", 
+      title = "Figura 6 - Variação da Taxa Geral Diária de Buscas sem Resultados Entre Grupos", 
       x = "Data de Acesso.", 
       y = "Taxa Geral de Cliques",
       subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas.",
-      fill = "Data da busca",
       color = "Grupo")
 ```
 
 # 4. A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
 
 
-```{r}
-buscas %>% 
-    ggplot(aes(x = num_clicks)) +
-    geom_density()
+Optou-se por comparar o tempo de sessão com a quantidade de buscas em uma mesma sessão. Interessante notar que a quantidade de buscas efetuadas para aqueles que utilizaram o algoritmo de busca A é muito maior que os que utilizaram o algortimo B. Talvez esse efeito se deve a algum fator ineficiente do algorítmo (delay, resultados errados, etc)
 
-buscas %>% 
-    ggplot(aes(x = num_clicks)) + 
-    geom_histogram(binwidth = 5) 
+```{r}
+search_by_min = buscas %>% 
+  mutate(session_length_min = session_length/60)
+
+search_by_min %>%
+  ggplot(mapping = aes(x = session_length_min, y = search_index, color=group)) +
+  scale_color_manual(values=c("orange", "#68B3A2")) +
+  geom_point(alpha = 0.3, na.rm = TRUE) + 
+  scale_x_continuous(limits=c(0,1000)) +
+  facet_wrap(~group)+
+  labs(
+      title = "Figura 7 - Índice do click em relação a Duração da seção", 
+      x = "Duração da seção (Min)",
+      y = "Buscas Efetuadas em uma Mesma Sessão",
+      subtitle = "Taxa de cliques para datas para datas em que ocorreram buscas.",
+      color = "Grupo"
+      )
+
 ```
 
+## **4.** Resultados e Conclusões
+
+Sabe-se que a média geral de clicks é maior para o grupo A. Assim, como o número de ocorrências é maior para esse grupo (Figura 2), visto isso, aparentemente o algoritmo do grupo A foi utilizado com muito mais intensidade ou é mais eficiente de fato.
+
+Em relação em qual link o usuário clica primeiro, verificamos (Figura 3 e Figura 4) que os mesmos clicam pela primeira vez, na maioria das vezes, entre os primeiros 10 links retornados. Em relação aos grupos, praticamente, o A e o B têm taxas bem diferentes (Figura 4). É possível observar ainda que o algorítmo A apresenta uma queda acentuada no dia 05 de Março que também é replicada na taxa geral de cliques (Figura 1)
+
+Por fim, relacionamos a variável duração da sessão com a quantidade de buscas efetuadas na sessão e observamos que, para o grupo B a sequencia de buscas por sessão é bem menor do que para o grupo A, além de sessões com pouca duração (Figura 7).
