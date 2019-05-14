@@ -216,12 +216,6 @@ search_dates %>%
 ```
 
 ```{r}
-buscas %>% 
-    ggplot(aes(x = num_clicks)) +
-    geom_density()
 
-buscas %>% 
-    ggplot(aes(x = num_clicks)) + 
-    geom_histogram(binwidth = 5) 
 ```
 
