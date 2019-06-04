@@ -1,0 +1,155 @@
+---
+title: "Fundamentos de Pesquisa em Ciência da Computação 2"
+output:
+  html_document:
+    df_print: paged
+---
+
+## L2P2 - Antonio Esteves
+
+## **Explorando e Inferindo dados das Sessões, Buscas e Navegações da Wikimedia**
+
+Neste relatório, usa-se a exploração de dados da Wikimedia Foundation, apresentando conclusões de inferências estatísticas sobre o dataset disponibilizado por eles e seguindo instruções da tarefa original, respondendo as quatro perguntas elencadas na mesma.
+
+1. Qual é a nossa taxa de cliques geral diária? Como isso varia entre os grupos?
+
+2. Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
+
+3. Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+4. A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
+
+5. Resuma suas descobertas em um resumo executivo.
+
+Nas seções um e dois estão as bibliotecas utilizadas e o os dados utilizados na análise. Na seção 3 estão as respostas para as perguntas elencadas no relatório e na última seção estão as conclusões obtidas das análises sobre os dados.
+
+
+## **1.** Importando as bibliotecas utilizadas.
+
+```{r}
+library(tidyverse)
+library(lubridate)
+
+library(boot)
+library(broom)
+library(here)
+
+library(ggbeeswarm)
+library(gridExtra)
+```
+
+
+
+## **2.** Lendo dataset de buscas para análise.
+
+```{r ETL}
+buscas = read_csv("../data/search_data.csv")
+```
+
+### 2.1 Tratamento dos dados
+
+```{r}
+glimpse(buscas)
+```
+
+Para uma análise melhor, foram realizados alguns tratamento nos dados. Inicialmente separamos os dados de forma a compilar apenas as datas que foram efetuadas buscas. Tratamentos específicos são realizados para cada sessão.
+
+
+```{r}
+search_dates <- buscas %>% 
+  mutate(search_date = format(session_start_date, "%d-%m-%Y"))
+
+valid_searches = search_dates %>%
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016")) %>%
+  group_by(search_date)
+
+
+glimpse(valid_searches)
+```
+
+### 2.2 Variáveis Utilizadas nas análises
+As variáveis utilizadas podem serem vistas abaixo:
+
+`group` : Um marcador (“a” ou “b”);
+
+`results` : Número de ocorrências retornadas para o usuário;
+
+`num_clicks`: Número de ocorrências clicadas pelo usuário;
+
+`first_click`: Posição da ocorrência que o usuário clicou primeiro;
+
+`session_start_date`: Data do início da pesquisa;
+
+`session_length`: Duração da sessão.
+
+`search_index` : Um contador de buscas em uma mesma sessão ordenado cronologicamente
+
+
+## **3.** Respostas e Análise exploratória de dados.
+
+
+
+### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos - ICS?
+
+```{r}
+theta_diferenca = function(d, i){
+    diferenca = d %>% 
+        slice(i) %>% 
+        group_by(group) %>% 
+        summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(valid_searches)))
+        
+    group_a = diferenca %>% filter(group == 'a') %>% pull(clickthrough_rate)
+    group_b = diferenca %>% filter(group == 'b') %>% pull(clickthrough_rate)
+    
+    group_a - group_b
+}
+theta_diferenca(valid_searches, 1:NROW(valid_searches))
+```
+
+```{r}
+valid_searches %>% 
+    boot(statistic = theta_diferenca, R = 4000) %>% 
+    tidy(conf.level = 0.90, 
+         conf.int = TRUE)
+```
+
+
+```{r}
+theta_embaralhado = function(d){
+    diferenca = d %>% 
+        mutate(grupo_embaralhado = sample(group, n())) %>% 
+        group_by(grupo_embaralhado) %>% 
+        summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(valid_searches)))
+    
+    group_a = diferenca %>% filter(grupo_embaralhado == "a") %>% pull(clickthrough_rate)
+    group_b = diferenca %>% filter(grupo_embaralhado == "b") %>% pull(clickthrough_rate)
+    
+    group_a - group_b
+}
+theta_embaralhado(valid_searches)
+```
+
+
+
+### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos - Hipótese Nula?
+
+
+```{r}
+
+
+
+
+
+```
+
+### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
+### 4.2 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
+
+
+## **5.** Resultados e Conclusões
+
+Sabe-se que a média geral de clicks é maior para o grupo A. Assim, como o número de ocorrências é maior para esse grupo (Figura 2), visto isso, aparentemente o algoritmo do grupo A foi utilizado com muito mais intensidade ou é mais eficiente de fato.
+
+Em relação em qual link o usuário clica primeiro, verificamos (Figura 3 e Figura 4) que os mesmos clicam pela primeira vez, na maioria das vezes, entre os primeiros 10 links retornados. Em relação aos grupos, praticamente, o A e o B têm taxas bem diferentes (Figura 4). É possível observar ainda que o algorítmo A apresenta uma queda acentuada no dia 05 de Março que também é replicada na taxa geral de cliques (Figura 1)
+
+Por fim, relacionamos a variável duração da sessão com a quantidade de buscas efetuadas na sessão e observamos que, para o grupo B a sequencia de buscas por sessão é bem menor do que para o grupo A, além de sessões com pouca duração (Figura 7).
