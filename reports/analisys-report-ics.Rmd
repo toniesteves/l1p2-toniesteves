@@ -9,19 +9,10 @@ output:
 
 ## **Explorando e Inferindo dados das Sessões, Buscas e Navegações da Wikimedia**
 
-Neste relatório, usa-se a exploração de dados da Wikimedia Foundation, apresentando conclusões de inferências estatísticas sobre o dataset disponibilizado por eles e seguindo instruções da tarefa original, respondendo as quatro perguntas elencadas na mesma.
+Considerando que os dados da wikimedia que usamos no Laboratório 2, faça uma inferência sobre como é, na população de todas as sessões do site: 
 
-1. Qual é a nossa taxa de cliques geral diária? Como isso varia entre os grupos?
-
-2. Quais resultados as pessoas tendem a tentar primeiro? Como isso muda no dia-a-dia?
-
-3. Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
-
-4. A duração da sessão é aproximadamente o tempo entre o primeiro e o último evento de uma sessão. Escolha uma variável do conjunto de dados e descreva sua relação com o tamanho da sessão. Visualize o relacionamento.
-
-5. Resuma suas descobertas em um resumo executivo.
-
-Nas seções um e dois estão as bibliotecas utilizadas e o os dados utilizados na análise. Na seção 3 estão as respostas para as perguntas elencadas no relatório e na última seção estão as conclusões obtidas das análises sobre os dados.
+1. A diferença entre o clickthrough rate dos grupos A e B.
+2. A diferença na proporção buscas com zero resultados nos grupos A e B.
 
 
 ## **1.** Importando as bibliotecas utilizadas.
@@ -60,8 +51,8 @@ search_dates <- buscas %>%
   mutate(search_date = format(session_start_date, "%d-%m-%Y"))
 
 valid_searches = search_dates %>%
-  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016")) %>%
-  group_by(search_date)
+  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016"))
+  # group_by(search_date)
 
 
 glimpse(valid_searches)
@@ -88,11 +79,10 @@ As variáveis utilizadas podem serem vistas abaixo:
 ## **3.** Respostas e Análise exploratória de dados.
 
 
-
-### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos - ICS?
+### 3.1 A diferença entre o clickthrough rate dos grupos A e B - ICS?
 
 ```{r}
-theta_diferenca = function(d, i){
+theta_diferenca_clickthrough = function(d, i){
     diferenca = d %>% 
         slice(i) %>% 
         group_by(group) %>% 
@@ -103,53 +93,138 @@ theta_diferenca = function(d, i){
     
     group_a - group_b
 }
-theta_diferenca(valid_searches, 1:NROW(valid_searches))
+theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches))
 ```
 
 ```{r}
 valid_searches %>% 
-    boot(statistic = theta_diferenca, R = 4000) %>% 
+    boot(statistic = theta_diferenca_clickthrough, R = 4000) %>% 
     tidy(conf.level = 0.90, 
          conf.int = TRUE)
 ```
 
 
+### 3.1 A diferença entre o clickthrough rate dos grupos A e B - Hipótese Nula?
+
+
 ```{r}
 theta_embaralhado = function(d){
-    diferenca = d %>% 
-        mutate(grupo_embaralhado = sample(group, n())) %>% 
-        group_by(grupo_embaralhado) %>% 
+    diferenca = d %>%
+        mutate(grupo_embaralhado = sample(group, n())) %>%
+        group_by(grupo_embaralhado) %>%
         summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(valid_searches)))
-    
+
     group_a = diferenca %>% filter(grupo_embaralhado == "a") %>% pull(clickthrough_rate)
     group_b = diferenca %>% filter(grupo_embaralhado == "b") %>% pull(clickthrough_rate)
-    
+
     group_a - group_b
 }
 theta_embaralhado(valid_searches)
 ```
 
-
-
-### 3.1 Qual é a taxa de cliques geral diária? Como isso varia entre os grupos - Hipótese Nula?
-
-
 ```{r}
-
-
-
-
-
+valid_searches %>% 
+    boot(statistic = theta_diferenca_clickthrough, R = 4000) %>% 
+    tidy(conf.level = 0.90, 
+         conf.int = TRUE)
 ```
 
-### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
-### 4.2 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos?
+```{r}
+diffs = replicate(5000, {theta_embaralhado(valid_searches)})
 
+tibble(diferenca = diffs1) %>% 
+  ggplot(aes(x = diferenca)) + 
+  # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") +
+    geom_density(fill = "white", color = "darkgreen") + 
+  geom_vline(xintercept = theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches)), 
+             color = "orange") + 
+    geom_vline(xintercept = - theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches)), 
+             color = "orange") + 
+    geom_rug()
+```
+
+```{r}
+mean(abs(diffs) >= abs(theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches))))
+```
+
+### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos - ICs?
+
+```{r}
+no_results = search_dates %>%
+  filter((results > 0)) %>%
+  group_by(search_date)
+
+no_results_per_date = no_results %>%
+  summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+
+glimpse(no_results)
+```
+
+```{r}
+theta_diferenca_no_results = function(d, i){
+    diferenca = d %>% 
+        slice(i) %>% 
+        group_by(group) %>% 
+        summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+
+        
+    group_a = diferenca %>% filter(group == 'a') %>% pull(no_results_rate)
+    group_b = diferenca %>% filter(group == 'b') %>% pull(no_results_rate)
+    
+    group_a - group_b
+}
+theta_diferenca_no_results(no_results, 1:NROW(no_results))
+```
+
+```{r}
+valid_searches %>% 
+    boot(statistic = theta_diferenca_no_results, R = 4000) %>% 
+    tidy(conf.level = 0.90, 
+         conf.int = TRUE)
+```
+
+### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos - Hipótese Nula?
+
+```{r}
+theta_embaralhado = function(d){
+    diferenca = d %>%
+        mutate(grupo_embaralhado = sample(group, n())) %>%
+        group_by(grupo_embaralhado) %>%
+        summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+
+    group_a = diferenca %>% filter(grupo_embaralhado == "a") %>% pull(no_results_rate)
+    group_b = diferenca %>% filter(grupo_embaralhado == "b") %>% pull(no_results_rate)
+
+    group_a - group_b
+}
+theta_embaralhado(valid_searches)
+```
+
+```{r}
+valid_searches %>% 
+    boot(statistic = theta_diferenca_no_results, R = 4000) %>% 
+    tidy(conf.level = 0.90, 
+         conf.int = TRUE)
+```
+
+```{r}
+diffs = replicate(5000, {theta_embaralhado(valid_searches)})
+
+tibble(diferenca = diffs1) %>% 
+  ggplot(aes(x = diferenca)) + 
+  # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") +
+    geom_density(fill = "white", color = "darkgreen") + 
+  geom_vline(xintercept = theta_diferenca_no_results(valid_searches, 1:NROW(valid_searches)), 
+             color = "orange") + 
+    geom_vline(xintercept = - theta_diferenca_no_results(valid_searches, 1:NROW(valid_searches)), 
+             color = "orange") + 
+    geom_rug()
+```
 
 ## **5.** Resultados e Conclusões
 
-Sabe-se que a média geral de clicks é maior para o grupo A. Assim, como o número de ocorrências é maior para esse grupo (Figura 2), visto isso, aparentemente o algoritmo do grupo A foi utilizado com muito mais intensidade ou é mais eficiente de fato.
+<!-- Sabe-se que a média geral de clicks é maior para o grupo A. Assim, como o número de ocorrências é maior para esse grupo (Figura 2), visto isso, aparentemente o algoritmo do grupo A foi utilizado com muito mais intensidade ou é mais eficiente de fato. -->
 
-Em relação em qual link o usuário clica primeiro, verificamos (Figura 3 e Figura 4) que os mesmos clicam pela primeira vez, na maioria das vezes, entre os primeiros 10 links retornados. Em relação aos grupos, praticamente, o A e o B têm taxas bem diferentes (Figura 4). É possível observar ainda que o algorítmo A apresenta uma queda acentuada no dia 05 de Março que também é replicada na taxa geral de cliques (Figura 1)
+<!-- Em relação em qual link o usuário clica primeiro, verificamos (Figura 3 e Figura 4) que os mesmos clicam pela primeira vez, na maioria das vezes, entre os primeiros 10 links retornados. Em relação aos grupos, praticamente, o A e o B têm taxas bem diferentes (Figura 4). É possível observar ainda que o algorítmo A apresenta uma queda acentuada no dia 05 de Março que também é replicada na taxa geral de cliques (Figura 1) -->
 
-Por fim, relacionamos a variável duração da sessão com a quantidade de buscas efetuadas na sessão e observamos que, para o grupo B a sequencia de buscas por sessão é bem menor do que para o grupo A, além de sessões com pouca duração (Figura 7).
+<!-- Por fim, relacionamos a variável duração da sessão com a quantidade de buscas efetuadas na sessão e observamos que, para o grupo B a sequencia de buscas por sessão é bem menor do que para o grupo A, além de sessões com pouca duração (Figura 7). -->
