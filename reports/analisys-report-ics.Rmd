@@ -45,15 +45,12 @@ glimpse(buscas)
 
 Para uma análise melhor, foram realizados alguns tratamento nos dados. Inicialmente separamos os dados de forma a compilar apenas as datas que foram efetuadas buscas. Tratamentos específicos são realizados para cada sessão.
 
-
 ```{r}
 search_dates <- buscas %>% 
   mutate(search_date = format(session_start_date, "%d-%m-%Y"))
 
 valid_searches = search_dates %>%
-  filter((num_clicks > 0) & (first_click <= results) & (results > 0) & (search_date != "08-03-2016"))
-  # group_by(search_date)
-
+  filter((first_click <= results) & (results > 0) & (search_date != "08-03-2016"))
 
 glimpse(valid_searches)
 ```
@@ -79,18 +76,21 @@ As variáveis utilizadas podem serem vistas abaixo:
 ## **3.** Respostas e Análise exploratória de dados.
 
 
-### 3.1 A diferença entre o clickthrough rate dos grupos A e B - ICS?
+## **3.1** A diferença entre o clickthrough rate dos grupos A e B ?
+
+### **3.1.1.** Com Intervalos de Confiança 
 
 ```{r}
 theta_diferenca_clickthrough = function(d, i){
-    diferenca = d %>% 
-        slice(i) %>% 
+    
+    diferenca = d %>%
+        slice(i) %>%
         group_by(group) %>% 
-        summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(valid_searches)))
-        
+        summarize(total_clicks = sum(num_clicks), clickthrough_rate = (total_clicks/nrow(d)), total = NROW(d))
+
     group_a = diferenca %>% filter(group == 'a') %>% pull(clickthrough_rate)
     group_b = diferenca %>% filter(group == 'b') %>% pull(clickthrough_rate)
-    
+
     group_a - group_b
 }
 theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches))
@@ -103,16 +103,18 @@ valid_searches %>%
          conf.int = TRUE)
 ```
 
+É possível observar que a taxa média de cliques fica em torno de 0.81 em 90% dos casos, com um intervalo de confiança entre 0.80 e 0.083. Os dados mostram ainda que não há uma diferença relevante na taxa de cliques para os dois grupos.
 
-### 3.1 A diferença entre o clickthrough rate dos grupos A e B - Hipótese Nula?
+### **3.1.2** Com Teste de Hipótese
 
 
 ```{r}
 theta_embaralhado = function(d){
     diferenca = d %>%
-        mutate(grupo_embaralhado = sample(group, n())) %>%
-        group_by(grupo_embaralhado) %>%
-        summarize(total_clicks = n(), clickthrough_rate = (total_clicks/nrow(valid_searches)))
+      ungroup() %>% 
+        mutate(grupo_embaralhado = sample(group, n())) %>% 
+        group_by(grupo_embaralhado) %>% 
+        summarize(total_clicks = sum(num_clicks), clickthrough_rate = (total_clicks/nrow(valid_searches)))
 
     group_a = diferenca %>% filter(grupo_embaralhado == "a") %>% pull(clickthrough_rate)
     group_b = diferenca %>% filter(grupo_embaralhado == "b") %>% pull(clickthrough_rate)
@@ -132,99 +134,110 @@ valid_searches %>%
 ```{r}
 diffs = replicate(5000, {theta_embaralhado(valid_searches)})
 
-tibble(diferenca = diffs1) %>% 
+tibble(diferenca = diffs) %>% 
   ggplot(aes(x = diferenca)) + 
   # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") +
     geom_density(fill = "white", color = "darkgreen") + 
   geom_vline(xintercept = theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches)), 
              color = "orange") + 
-    geom_vline(xintercept = - theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches)), 
+  geom_vline(xintercept = - theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches)), 
              color = "orange") + 
-    geom_rug()
+  geom_rug()
 ```
 
+O teste de hipótese(p-valor) é definido como 0.73, o que a priori significa uma baixa confiança e que de fato não há uma diferença na taxa de cliques para os dois grupos - considerando que a nossa hipótese é que exista um diferença na taxa de cliques. Assim se tomarmos como base o valor do teste de hipótese é possível presumir que muito provavélmente não exista uma diferença "significante" na taxa de cliques dos dois grupos, ainda que isso não exclua a possibilidade de existir sim uma diferença, mesmo que pequena. Além disso, não é possível definir o tamanho ideal ou a significância dessa diferença.
+
+### **3.1.3.** Conclusões
+
+Como já foi mencionado a taxa média de cliques fica em torno de 0.81 em 90% dos casos, denotando a ausencia de uma diferença relevante, o que é ratificado pelo teste de hipótese ao contestar a hipótese nula com um p-valor definido como 0.73 - - considerando que a nossa hipótese é que exista um diferença na taxa de cliques. Porém dada a admissibilidade de não haver uma diferença relevante, não é possivel precisar o tamnho da significancia dessa diferença.
+
+## **3.2** A diferença na proporção buscas com zero resultados nos grupos A e B
+
+### **3.2.1.** Com intervalos de Confiança
+
 ```{r}
-mean(abs(diffs) >= abs(theta_diferenca_clickthrough(valid_searches, 1:NROW(valid_searches))))
-```
-
-### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos - ICs?
-
-```{r}
-no_results = search_dates %>%
-  filter((results > 0)) %>%
-  group_by(search_date)
-
-no_results_per_date = no_results %>%
-  summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+no_results = buscas %>%
+  filter(results == 0)
 
 glimpse(no_results)
 ```
 
 ```{r}
 theta_diferenca_no_results = function(d, i){
+
     diferenca = d %>% 
+        filter((results == 0)) %>% 
         slice(i) %>% 
         group_by(group) %>% 
-        summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+        summarize(total_no_results = n(), no_results_rate = (total_no_results/NROW(buscas)), total = NROW(buscas))
 
-        
     group_a = diferenca %>% filter(group == 'a') %>% pull(no_results_rate)
     group_b = diferenca %>% filter(group == 'b') %>% pull(no_results_rate)
-    
+
     group_a - group_b
 }
-theta_diferenca_no_results(no_results, 1:NROW(no_results))
+theta_diferenca_no_results(buscas, 1:NROW(buscas))
 ```
 
 ```{r}
-valid_searches %>% 
+buscas %>% 
+    filter(results == 0) %>% 
     boot(statistic = theta_diferenca_no_results, R = 4000) %>% 
     tidy(conf.level = 0.90, 
          conf.int = TRUE)
 ```
 
-### 4.1 Qual é a nossa taxa de resultados zero no geral? Como isso varia entre os grupos - Hipótese Nula?
+É possível observar que a taxa média de zeros resultados fica em torno de 0.06 em 90% dos casos, com um intervalo de confiança entre 0.061 e 0.065. Os dados mostram ainda que não há evidencia de uma diferença relevante na taxa média de zeros resultados para os dois grupos.
+
+### **3.2.2** Com Testes de Hipótese
 
 ```{r}
 theta_embaralhado = function(d){
     diferenca = d %>%
+        filter(results == 0) %>% 
         mutate(grupo_embaralhado = sample(group, n())) %>%
         group_by(grupo_embaralhado) %>%
-        summarize(total_no_results = n(), no_results_rate = (total_no_results/nrow(search_dates)))
+        summarize(total_no_results = n(), no_results_rate = (total_no_results/NROW(buscas)))
+
 
     group_a = diferenca %>% filter(grupo_embaralhado == "a") %>% pull(no_results_rate)
     group_b = diferenca %>% filter(grupo_embaralhado == "b") %>% pull(no_results_rate)
 
     group_a - group_b
 }
-theta_embaralhado(valid_searches)
+theta_embaralhado(buscas)
 ```
 
 ```{r}
-valid_searches %>% 
+buscas %>% 
+    filter(results==0) %>% 
     boot(statistic = theta_diferenca_no_results, R = 4000) %>% 
     tidy(conf.level = 0.90, 
          conf.int = TRUE)
 ```
 
 ```{r}
-diffs = replicate(5000, {theta_embaralhado(valid_searches)})
+diffs = replicate(5000, {theta_embaralhado(no_results)})
 
-tibble(diferenca = diffs1) %>% 
+tibble(diferenca = diffs) %>% 
   ggplot(aes(x = diferenca)) + 
   # geom_histogram(binwidth = .2, fill = "white", color = "darkgreen") +
-    geom_density(fill = "white", color = "darkgreen") + 
-  geom_vline(xintercept = theta_diferenca_no_results(valid_searches, 1:NROW(valid_searches)), 
+  geom_density(fill = "white", color = "darkgreen") +
+  geom_vline(xintercept = theta_diferenca_no_results(valid_searches, 1:NROW(no_results)), 
              color = "orange") + 
-    geom_vline(xintercept = - theta_diferenca_no_results(valid_searches, 1:NROW(valid_searches)), 
+  geom_vline(xintercept = - theta_diferenca_no_results(valid_searches, 1:NROW(no_results)), 
              color = "orange") + 
-    geom_rug()
+  geom_rug()
 ```
 
-## **5.** Resultados e Conclusões
 
-<!-- Sabe-se que a média geral de clicks é maior para o grupo A. Assim, como o número de ocorrências é maior para esse grupo (Figura 2), visto isso, aparentemente o algoritmo do grupo A foi utilizado com muito mais intensidade ou é mais eficiente de fato. -->
+O teste de hipótese(p-valor) é definido como 0.06, o que a priori significa uma alta confiança e que de fato há uma diferença na proporção de buscas com zero resultados nos dois grupos - considerando que a nossa hipótese é que exista um diferença na proporção de buscas com zero resultados nos dois grupos. Assim se tomarmos como base o valor do teste de hipótese é possível presumir que muito provavélmente exista uma diferença "significante" na proporção de buscas com zero resultados nos dois grupos, ainda que isso não exclua a possibilidade de não existir essa diferença, mesmo que pequena. Além disso, não é possível definir o tamanho ideal ou a significância dessa diferença.
 
-<!-- Em relação em qual link o usuário clica primeiro, verificamos (Figura 3 e Figura 4) que os mesmos clicam pela primeira vez, na maioria das vezes, entre os primeiros 10 links retornados. Em relação aos grupos, praticamente, o A e o B têm taxas bem diferentes (Figura 4). É possível observar ainda que o algorítmo A apresenta uma queda acentuada no dia 05 de Março que também é replicada na taxa geral de cliques (Figura 1) -->
 
-<!-- Por fim, relacionamos a variável duração da sessão com a quantidade de buscas efetuadas na sessão e observamos que, para o grupo B a sequencia de buscas por sessão é bem menor do que para o grupo A, além de sessões com pouca duração (Figura 7). -->
+## **3.2.3** Resultados e Conclusões
+
+
+Como já foi mencionado a taxa média de cliques fica em torno de 0.06 para 90% dos casos, denotando a ausencia de uma diferença relevante. No entando o teste de hipótese define um p-valor de 0.06, o que confirma a nossa hipótese de que há uma diferença na proporção de buscas com zero resultados nos dois grupos
+
+Apesar disso não é possivel afirmar com certeza se realmente há uma diferença. Mesmo com a comparação das duas hipóteses, intervalos de confiança e hipotese nula, os resultados aparentam serem inconclusivos. Utilizando intervalos de confiança chegamos há uma diferença irrelevante, diferença essa que tampouco é confirmada pelo teste de hipótese.
+
